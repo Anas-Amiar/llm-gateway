@@ -1,9 +1,17 @@
 # LLM Gateway with Rate Limiting, Fallback Routing, and Circuit Breakers
 
+[![CI](https://github.com/Anas-Amiar/llm-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/Anas-Amiar/llm-gateway/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A production-style API gateway that sits in front of all LLM calls: per-team API keys,
 token-bucket rate limits, daily budget enforcement, retry-then-fallback routing across
 providers, and circuit breakers that skip a failing provider instantly instead of burning
 timeouts on it.
+
+Ships as a real HTTP service (FastAPI) **and** a pure, unit-tested core. Runs on mock
+providers by default, so it needs **no API keys** — clone it and the server (or the
+one-click deploy) is live immediately.
 
 The demo plays the full incident lifecycle in one run:
 
@@ -45,7 +53,10 @@ gateway/
   gateway.py    The core: auth -> tier check -> rate limit -> budget -> routed
                 call (retry x2 on primary, then fallback chain, breakers skip
                 dead providers) -> metrics
+  app.py        FastAPI HTTP layer: POST /v1/chat, GET /health, GET /metrics;
+                maps gateway statuses to HTTP codes (429 + Retry-After, etc.)
   demo.py       The 5-scene incident lifecycle on a simulated clock
+tests/          Deterministic pytest suite driving the fake clock (no network)
 ```
 
 ### Request lifecycle
@@ -63,15 +74,54 @@ handle(request, now)
   6. all failed -> "all_providers_down" with detail
 ```
 
-## Setup
+## Quickstart
 
 ```bash
-git clone https://github.com/Anas-Amiar/Project-12-llm-gateway.git
-cd "Project 12 - llm-gateway"
+git clone https://github.com/Anas-Amiar/llm-gateway.git
+cd llm-gateway
 pip install -r requirements.txt
 
-python3 -m gateway.demo   # the full 5-scene incident lifecycle
+python3 -m gateway.demo   # the full 5-scene incident lifecycle on a simulated clock
 ```
+
+## Run the API
+
+```bash
+uvicorn gateway.app:app --reload      # http://localhost:8000  (interactive docs at /docs)
+```
+
+```bash
+# a normal request — routed to the cheapest capable provider in the tier
+curl -s -X POST localhost:8000/v1/chat \
+  -H 'content-type: application/json' \
+  -d '{"api_key":"demo-key","prompt":"summarize this","tier":"standard"}'
+# -> {"status":"ok","provider_used":"openai","cost_usd":0.003, ...}
+```
+
+`batch-key` is capped at 5 req/min — fire it in a loop and you get clean `429`s with a real
+`Retry-After` header. `GET /health` returns per-provider circuit-breaker state; `GET /metrics`
+returns the aggregate counters.
+
+## Deploy your own
+
+Runs on mock providers with no secrets, so a public demo is one click:
+
+- **Render** — New → Blueprint → point at this repo (`render.yaml` included, free tier).
+- **Docker** — `docker build -t llm-gateway . && docker run -p 8000:8000 llm-gateway`
+
+To make it live, swap `MockProvider` in `providers.py` for real provider SDK calls — the
+interface (`call(prompt) -> (text, latency, cost)`) stays the same.
+
+## Testing
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q        # 15 tests, deterministic, no network
+```
+
+The core takes a caller-supplied clock, so rate-limit refill, circuit-breaker windows, and
+cooldowns are all asserted by advancing a fake clock — the suite runs in well under a second
+and CI runs it on Python 3.10–3.12.
 
 ## Architecture decisions
 

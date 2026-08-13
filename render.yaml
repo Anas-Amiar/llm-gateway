@@ -1,0 +1,11 @@
+# One-click deploy on Render (https://render.com).
+# New > Blueprint > point at this repo. Free tier, no secrets required —
+# the gateway runs on mock providers out of the box.
+services:
+  - type: web
+    name: llm-gateway
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn gateway.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
