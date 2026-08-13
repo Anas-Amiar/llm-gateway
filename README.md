@@ -4,6 +4,8 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+> **▶ Live demo:** [https://llm-gateway-z3gu.onrender.com/docs](https://llm-gateway-z3gu.onrender.com/docs) — a running instance on Render's free tier. The first request after a while takes ~50s to wake the service, then it's fast.
+
 A production-style API gateway that sits in front of all LLM calls: per-team API keys,
 token-bucket rate limits, daily budget enforcement, retry-then-fallback routing across
 providers, and circuit breakers that skip a failing provider instantly instead of burning
